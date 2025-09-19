@@ -1,48 +1,40 @@
 pipeline {
     agent any
 
-    environment {
-        IMAGE_NAME = "clinica-notarial:latest"
-        CONTAINER_NAME = "clinica-test"
-    }
-
     stages {
         stage('Checkout') {
             steps {
+                // Obtiene el código del repositorio
                 git branch: 'main', url: 'https://github.com/agusper11/poc-clinica-notarial.git'
             }
         }
 
-        stage('Build Docker') {
+        stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${IMAGE_NAME} ."
+                // Construye la imagen usando el Dockerfile en backend/
+                sh 'docker build -f backend/Dockerfile -t clinica-notarial:latest backend'
             }
         }
 
-        stage('Run Docker') {
+        stage('Run Container') {
             steps {
-                sh "docker run -d -p 5000:5000 --name ${CONTAINER_NAME} ${IMAGE_NAME}"
-                sh "sleep 5" // Espera que el contenedor esté listo
+                // Levanta el contenedor en segundo plano
+                sh 'docker run -d --name clinica-notarial -p 5000:5000 clinica-notarial:latest || true'
             }
         }
 
-        stage('Test') {
+        stage('Test App') {
             steps {
-                sh "curl http://localhost:5000"
+                // Verifica que el contenedor responde (saludo de Flask)
+                sh 'sleep 5 && curl -f http://localhost:5000 || exit 1'
             }
         }
 
-        stage('Clean up') {
+        stage('Cleanup') {
             steps {
-                sh "docker stop ${CONTAINER_NAME}"
-                sh "docker rm ${CONTAINER_NAME}"
+                // Elimina el contenedor después de la prueba
+                sh 'docker stop clinica-notarial || true && docker rm clinica-notarial || true'
             }
-        }
-    }
-
-    post {
-        always {
-            echo "Pipeline finalizado"
         }
     }
 }
