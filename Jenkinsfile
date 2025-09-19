@@ -4,35 +4,37 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // Obtiene el código del repositorio
                 git branch: 'main', url: 'https://github.com/agusper11/poc-clinica-notarial.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                // Construye la imagen usando el Dockerfile en backend/
-                sh 'docker build -f backend/Dockerfile -t clinica-notarial:latest backend'
+                // Construye la imagen sin cache para asegurarnos que usa el último código
+                sh 'docker build --no-cache -f backend/Dockerfile -t clinica-notarial:latest backend'
             }
         }
 
         stage('Run Container') {
             steps {
-                // Levanta el contenedor en segundo plano
-                sh 'docker run -d --name clinica-notarial -p 5000:5000 clinica-notarial:latest || true'
+                // Detiene y elimina si ya existía, luego levanta el contenedor nuevo
+                sh '''
+                    docker stop clinica-notarial || true
+                    docker rm clinica-notarial || true
+                    docker run -d --name clinica-notarial -p 5000:5000 clinica-notarial:latest
+                '''
             }
         }
 
         stage('Test App') {
             steps {
-                // Verifica que el contenedor responde (saludo de Flask)
+                // Verifica que el contenedor responde correctamente al endpoint raíz
                 sh 'sleep 5 && curl -f http://localhost:5000 || exit 1'
             }
         }
 
         stage('Cleanup') {
             steps {
-                // Elimina el contenedor después de la prueba
                 sh 'docker stop clinica-notarial || true && docker rm clinica-notarial || true'
             }
         }
