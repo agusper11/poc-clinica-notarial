@@ -1,42 +1,54 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "clinica-notarial:${BRANCH_NAME}"
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/agusper11/poc-clinica-notarial.git'
+                echo "Checkout branch: ${BRANCH_NAME}"
+                git branch: "${BRANCH_NAME}", url: 'https://github.com/agusper11/poc-clinica-notarial.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                // Construye la imagen sin cache para asegurarnos que usa el último código
-                sh 'docker build --no-cache -f backend/Dockerfile -t clinica-notarial:latest backend'
+                echo "Building Docker image for ${BRANCH_NAME}"
+                sh "docker build -f backend/Dockerfile -t ${IMAGE_NAME} backend"
             }
         }
 
         stage('Run Container') {
             steps {
-                // Detiene y elimina si ya existía, luego levanta el contenedor nuevo
-                sh '''
-                    docker stop clinica-notarial || true
-                    docker rm clinica-notarial || true
-                    docker run -d --name clinica-notarial -p 5000:5000 clinica-notarial:latest
-                '''
+                echo "Running container for ${BRANCH_NAME}"
+                sh """
+                    docker rm -f clinica-notarial-${BRANCH_NAME} || true
+                    docker run -d --name clinica-notarial-${BRANCH_NAME} -p 5000:5000 ${IMAGE_NAME}
+                """
             }
         }
 
         stage('Test App') {
             steps {
-                // Verifica que el contenedor responde correctamente al endpoint raíz
-                sh 'sleep 5 && curl -f http://localhost:5000 || exit 1'
+                echo "Testing application in branch ${BRANCH_NAME}"
+                sh 'sleep 5 && curl -f http://localhost:5000/ || exit 1'
             }
         }
 
-        stage('Cleanup') {
+        stage('Optional Cleanup') {
             steps {
-                sh 'docker stop clinica-notarial || true && docker rm clinica-notarial || true'
+                echo "Stopping container for ${BRANCH_NAME} (optional)"
+                // Comenta la siguiente línea si querés mantener el contenedor levantado
+                sh "docker stop clinica-notarial-${BRANCH_NAME} || true && docker rm clinica-notarial-${BRANCH_NAME} || true"
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline finished for branch ${BRANCH_NAME}"
         }
     }
 }
